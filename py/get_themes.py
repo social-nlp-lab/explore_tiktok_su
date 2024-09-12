@@ -47,7 +47,7 @@ def get_theme(hashtags, retries=2, model=None, client=None):
     If the word is substance-specific, categorize it under the specific substance category. 
     If the word is a consumption method for instance drink, prioritize the "Consumption Method" category and not the substance or alcohol category. 
 
-    Present your results in a clear, organized format, listing the categories and their respective hashtags.
+    Present your results in a clear, organized format, listing the categories and their respective hashtags.DO NOT CREATE NEW HASHTAGS. GROUP ONLY THE HASHTAGS PROVIDED AND GROUP ALL HASHTAGS.
     """
     examples = [
         {"role": "user", "content": "love, addiction, alcohol, cookies, foundersday,cannabis, modafinil, heroin, smoking, harmreduction, vitamins, fyp, stoned, vaping, addictionhumor, kensingtonphilly, nurselife, lgbtqia"},
