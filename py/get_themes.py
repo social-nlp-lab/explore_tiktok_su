@@ -1,14 +1,17 @@
-# the script for labeling a post as durg-related or not
+# the script for labeling a post as drug-related or not
 import pandas as pd
 import json
 import openai
 import time
 from threading import Lock
+from typing import List, Dict
+
 
 rate_limit = 10000
 tpm_limit = 2000000  # Tokens per minute
 rate_limit_period = 60  # seconds
 retry_wait_time = 5  # seconds between retries
+batch_size = 20  # Number of requests to batch together
 
 # Global variables for tracking rate limit
 request_count = 0
@@ -16,7 +19,9 @@ token_count = 0
 request_lock = Lock()
 token_lock = Lock()
 
-def get_theme(hashtags, retries=2, model=None, client=None):
+def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> List[str]:
+    global request_count, token_count
+
     prompt = """
     Instruction: You are an expert linguist, specializing in content analysis related to substances and drug use. Your task is to semantically categorize phrases or hashtags from TikTok that have been associated with drug-related content. Here are the 17 defined categories:
     1- emotions and feelings: words and phrases related to emotional states and feelings. 
@@ -34,7 +39,7 @@ def get_theme(hashtags, retries=2, model=None, client=None):
     13- humor: words, phrases, or hashtags related to jokes, memes, or any content meant to be funny but specific to substance use, addiction, or recovery. 
     14- location: words related to geographcial locations, it could be city, state, country, or continent. 
     15- occupation: words related to occupations or professions. 
-    16- identity-based risk groups: Hashtags related to any social identity, demographic group, or community affiliation that have faced or may currently experience marginalization, stigmatization, stereotyping, or labeling. This includes, but is not limited to, dimensions such as race, ethnicity, gender identity, sexual orientation, disability status, socioeconomic background, immigration status, religion, age group, or membership in specific subcultures.
+    16- identity and community: Hashtags related to any social identity, demographic group, or community affiliation. This includes, but is not limited to, dimensions such as race, ethnicity, gender identity, sexual orientation, disability status, socioeconomic background, immigration status, religion, age group, or membership in specific subcultures or communities. For example: lgbtqia, transgender, lgbtqtiktok, queergirl, queertiktok, feralqueer, whitegirl, transtok, indian, gaygirl, etc.
     17- misc: Any tag that does not fit into the above categories. 
     Task: Categorize the hashtag provided below into exactly one of the 17 categories: cannabis, cognitive enhancement, platform, tobacco_nicotine, emotions and feelings, commonly-misused substances, other substances, substance effects, alcohol, consumption method, health conditions, awareness and advocacy, Identity-Based Risk Groups, humor, location, occupation, and misc.
 
@@ -157,7 +162,7 @@ def get_theme(hashtags, retries=2, model=None, client=None):
         }
         """}
     ]
-    global request_count, token_count
+    results = []
 
     while retries > 0:
         try:
@@ -173,53 +178,37 @@ def get_theme(hashtags, retries=2, model=None, client=None):
                     time.sleep(rate_limit_period)
                     token_count = 0
 
+            # Prepare batch requests
             messages = [
                 {"role": "system", "content": prompt},
-                *examples,
-                {"role": "user", "content": f"Categorize these hashtags: {hashtags}"}
+                *examples
             ]
+
+            batch_requests = []
+            for i in range(0, len(hashtags_list), batch_size):
+                batch = hashtags_list[i:i+batch_size]
+                batch_messages = messages + [{"role": "user", "content": f"Categorize these hashtags: {', '.join(batch)}"}]
+                batch_requests.append({"messages": batch_messages})
+
+            # Make batch request
             response = client.chat.completions.create(
-                messages=messages,
                 model=model,
+                messages=batch_requests,
                 temperature=0
             )
-            # response = client.chat.completions.create(
-            #     messages=[
-            #         {"role": "system", "content": prompt},
-            #         {"role": "user", "content": example1},
-            #         {"role": "system", "content": answer1},
-            #         {"role": "user", "content": example2},
-            #         {"role": "system", "content": answer2},
-            #         {"role": "user", "content": example3},
-            #         {"role": "system", "content": answer3},
-            #         {"role": "user", "content": example4},
-            #         {"role": "system", "content": answer4},
-            #         {"role": "user", "content": example5},
-            #         {"role": "system", "content": answer5},
-            #         {"role": "user", "content": example6},
-            #         {"role": "system", "content": answer6},
-            #         {"role": "user", "content": example7},
-            #         {"role": "system", "content": answer7},
-            #         {"role": "user", "content": example8},
-            #         {"role": "system", "content": answer8},
-            #         {"role": "user", "content": example9},
-            #         {"role": "system", "content": answer9},
-            #         {"role": "user", "content": example10},
-            #         {"role": "system", "content": answer10},
-            #         {"role": "user", "content": hashtags}
-            #     ],
-            #     model=model,
-            #     temperature=0
-            # )
 
             with request_lock:
-                request_count += 1
+                request_count += len(batch_requests)
 
             with token_lock:
-                token_count += sum([len(prompt), len(response.choices[0].message.content)])
+                token_count += sum([len(prompt), sum([len(choice.message.content) for choice in response.choices])])
 
-            label = response.choices[0].message.content.lower().strip()
-            return label
+            # Process batch results
+            for choice in response.choices:
+                label = choice.message.content.lower().strip()
+                results.append(label)
+
+            return results
 
         except openai.RateLimitError as e:
             print(f"Rate limit error: {e}. Retrying in {retry_wait_time} seconds...")
@@ -231,4 +220,4 @@ def get_theme(hashtags, retries=2, model=None, client=None):
             time.sleep(retry_wait_time)
 
     print("Max retries reached. Skipping...")
-    return "skipped"
+    return ["skipped"] * len(hashtags_list)
