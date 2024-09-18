@@ -39,7 +39,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
     13- humor: words, phrases, or hashtags related to jokes, memes, or any content meant to be funny but specific to substance use, addiction, or recovery. 
     14- location: words related to geographcial locations, it could be city, state, country, or continent. 
     15- occupation: words related to occupations or professions. 
-    16- identity-based risk groups: Hashtags related to any social identity, demographic group, or community affiliation that have faced or may currently experience marginalization, stigmatization, stereotyping, or labeling. This includes, but is not limited to, dimensions such as race, ethnicity, gender identity, sexual orientation, disability status, socioeconomic background, immigration status, religion, age group, or membership in specific subcultures.
+    16- identity and community: hashtags related to any social identity, demographic group, or community affiliation. This includes, but is not limited to, dimensions such as race, ethnicity, gender identity, sexual orientation, disability status, socioeconomic background, immigration status, religion, age group, or membership in specific subcultures or communities. 
     17- misc: Any tag that does not fit into the above categories. 
     Task: Categorize the hashtag provided below into exactly one of the 17 categories: cannabis, cognitive enhancement, platform, tobacco_nicotine, emotions and feelings, commonly-misused substances, other substances, substance effects, alcohol, consumption method, health conditions, awareness and advocacy, Identity-Based Risk Groups, humor, location, occupation, and misc.
 
