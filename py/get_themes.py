@@ -170,7 +170,7 @@ def get_theme(hashtags: List[str], retries=2, model=None, client=None) -> Dict[s
         batch = hashtags[i:i + batch_size]
         hashtags_str = ', '.join(batch)
         print(f"Processing batch {i + 1} - {i + len(batch)} of {len(hashtags)}")
-        print("str:", hashtags_str)
+        print(hashtags_str)
         
         while retries > 0:
             try:
