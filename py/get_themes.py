@@ -39,7 +39,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
     13- humor: words, phrases, or hashtags related to jokes, memes, or any content meant to be funny but specific to substance use, addiction, or recovery. 
     14- location: words related to geographcial locations, it could be city, state, country, or continent. 
     15- occupation: words related to occupations or professions. 
-    16- identity and community: Hashtags related to any social identity, demographic group, or community affiliation. This includes, but is not limited to, dimensions such as race, ethnicity, gender identity, sexual orientation, disability status, socioeconomic background, immigration status, religion, age group, or membership in specific subcultures or communities. For example: lgbtqia, transgender, lgbtqtiktok, queergirl, queertiktok, feralqueer, whitegirl, transtok, indian, gaygirl, etc.
+    16- identity-based risk groups: Hashtags related to any social identity, demographic group, or community affiliation that have faced or may currently experience marginalization, stigmatization, stereotyping, or labeling. This includes, but is not limited to, dimensions such as race, ethnicity, gender identity, sexual orientation, disability status, socioeconomic background, immigration status, religion, age group, or membership in specific subcultures.
     17- misc: Any tag that does not fit into the above categories. 
     Task: Categorize the hashtag provided below into exactly one of the 17 categories: cannabis, cognitive enhancement, platform, tobacco_nicotine, emotions and feelings, commonly-misused substances, other substances, substance effects, alcohol, consumption method, health conditions, awareness and advocacy, Identity-Based Risk Groups, humor, location, occupation, and misc.
 
@@ -73,7 +73,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["addictionhumor"],
             "location": ["kensingtonphilly"],
             "occupation": ["nurselife"],
-            "identity-based risk groups": ["lgbtqia"]
+            "identity and community": ["lgbtqia"]
             "misc": ["cookies", "foundersday"]
         }
         """},
@@ -95,7 +95,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["drughumor"],
             "location": ["boston"],
             "occupation": ["medstudent"],
-            "identity-based risk groups": ["transgender"]
+            "identity and community": ["transgender"]
         }
         """},
         {"role": "user", "content": "trauma, opioidaddiction, whiskey, weed, nootropics, fentfriday, drink, narcansaveslives, tylenol, tiktok, highasfuck, juul, recoveryhumor, philly, healthcareworkers, queergirl"},
@@ -116,7 +116,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["recoveryhumor"],
             "location": ["philly"],
             "occupation": ["healthcareworkers"],
-            "identity-based risk groups": ["queergirl"]
+            "identity and community": ["queergirl"]
         }
         """},
         {"role": "user", "content": "vibes, substanceusedisorder, cocktails, dabs, cerebrolysin, lean, shmoke, harmreductionworks, ibuprofen, trending, blackedout, cigs, addictionhumor, sanfrancisco, socialworker, whitegirl"},
@@ -137,7 +137,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["addictionhumor"],
             "location": ["sanfrancisco"],
             "occupation": ["socialworker"],
-            "identity-based risk groups": ["whitegirl"]
+            "identity and community": ["whitegirl"]
         }
         """},
         {"role": "user", "content": "happytobealive, ptsd, tequila, 420vibes, modafinil, percs, inhaling, overdoseawareness, creatine, duet, hammered, nicotine, drughumor, usa, frontlineworkers, transtok"},
@@ -158,7 +158,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["drughumor"],
             "location": ["usa"],
             "occupation": ["frontlineworkers"],
-            "identity-based risk groups": ["transtok"]
+            "identity and community": ["transtok"]
         }
         """}
     ]
