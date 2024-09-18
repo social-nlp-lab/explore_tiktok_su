@@ -5,13 +5,13 @@ import openai
 import time
 from threading import Lock
 from typing import List, Dict
+import ast
 
 
 rate_limit = 10000
 tpm_limit = 2000000  # Tokens per minute
 rate_limit_period = 60  # seconds
 retry_wait_time = 5  # seconds between retries
-batch_size = 20  # Number of requests to batch together
 
 # Global variables for tracking rate limit
 request_count = 0
@@ -19,7 +19,9 @@ token_count = 0
 request_lock = Lock()
 token_lock = Lock()
 
-def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> List[str]:
+def get_theme(hashtags: List[str], retries=2, model=None, client=None) -> Dict[str, List[str]]:
+    batch_size = 50  # Adjust the batch size as needed
+    results = {}
     global request_count, token_count
 
     prompt = """
@@ -39,7 +41,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
     13- humor: words, phrases, or hashtags related to jokes, memes, or any content meant to be funny but specific to substance use, addiction, or recovery. 
     14- location: words related to geographcial locations, it could be city, state, country, or continent. 
     15- occupation: words related to occupations or professions. 
-    16- identity and community: hashtags related to any social identity, demographic group, or community affiliation. This includes, but is not limited to, dimensions such as race, ethnicity, gender identity, sexual orientation, disability status, socioeconomic background, immigration status, religion, age group, or membership in specific subcultures or communities. 
+    16- identity and community: Hashtags related to any social identity, demographic group, or community affiliation. This includes, but is not limited to, dimensions such as race, ethnicity, gender identity, sexual orientation, disability status, socioeconomic background, immigration status, religion, age group, or membership in specific subcultures or communities. For example: lgbtqia, transgender, lgbtqtiktok, queergirl, queertiktok, feralqueer, whitegirl, transtok, indian, gaygirl, etc.
     17- misc: Any tag that does not fit into the above categories. 
     Task: Categorize the hashtag provided below into exactly one of the 17 categories: cannabis, cognitive enhancement, platform, tobacco_nicotine, emotions and feelings, commonly-misused substances, other substances, substance effects, alcohol, consumption method, health conditions, awareness and advocacy, Identity-Based Risk Groups, humor, location, occupation, and misc.
 
@@ -54,6 +56,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
 
     Present your results in a clear, organized format, listing the categories and their respective hashtags.DO NOT CREATE NEW HASHTAGS. GROUP ONLY THE HASHTAGS PROVIDED AND GROUP ALL HASHTAGS.
     """
+    
     examples = [
         {"role": "user", "content": "love, addiction, alcohol, cookies, foundersday,cannabis, modafinil, heroin, smoking, harmreduction, vitamins, fyp, stoned, vaping, addictionhumor, kensingtonphilly, nurselife, lgbtqia"},
         {"role": "assistant", "content": """
@@ -73,7 +76,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["addictionhumor"],
             "location": ["kensingtonphilly"],
             "occupation": ["nurselife"],
-            "identity and community": ["lgbtqia"]
+            "identity-based risk groups": ["lgbtqia"]
             "misc": ["cookies", "foundersday"]
         }
         """},
@@ -95,7 +98,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["drughumor"],
             "location": ["boston"],
             "occupation": ["medstudent"],
-            "identity and community": ["transgender"]
+            "identity-based risk groups": ["transgender"]
         }
         """},
         {"role": "user", "content": "trauma, opioidaddiction, whiskey, weed, nootropics, fentfriday, drink, narcansaveslives, tylenol, tiktok, highasfuck, juul, recoveryhumor, philly, healthcareworkers, queergirl"},
@@ -116,7 +119,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["recoveryhumor"],
             "location": ["philly"],
             "occupation": ["healthcareworkers"],
-            "identity and community": ["queergirl"]
+            "identity-based risk groups": ["queergirl"]
         }
         """},
         {"role": "user", "content": "vibes, substanceusedisorder, cocktails, dabs, cerebrolysin, lean, shmoke, harmreductionworks, ibuprofen, trending, blackedout, cigs, addictionhumor, sanfrancisco, socialworker, whitegirl"},
@@ -137,7 +140,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["addictionhumor"],
             "location": ["sanfrancisco"],
             "occupation": ["socialworker"],
-            "identity and community": ["whitegirl"]
+            "identity-based risk groups": ["whitegirl"]
         }
         """},
         {"role": "user", "content": "happytobealive, ptsd, tequila, 420vibes, modafinil, percs, inhaling, overdoseawareness, creatine, duet, hammered, nicotine, drughumor, usa, frontlineworkers, transtok"},
@@ -158,66 +161,71 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "humor": ["drughumor"],
             "location": ["usa"],
             "occupation": ["frontlineworkers"],
-            "identity and community": ["transtok"]
+            "identity-based risk groups": ["transtok"]
         }
         """}
     ]
-    results = []
 
-    while retries > 0:
-        try:
-            with request_lock:
-                if request_count >= rate_limit:
-                    print("Rate limit reached. Pausing for a minute...")
-                    time.sleep(rate_limit_period)
-                    request_count = 0
+    for i in range(0, len(hashtags), batch_size):
+        batch = hashtags[i:i + batch_size]
+        hashtags_str = ', '.join(batch)
+        print(f"Processing batch {i + 1} - {i + len(batch)} of {len(hashtags)}")
+        print("str:", hashtags_str)
+        
+        while retries > 0:
+            try:
+                with request_lock:
+                    if request_count >= rate_limit:
+                        print("Rate limit reached. Pausing for a minute...")
+                        time.sleep(rate_limit_period)
+                        request_count = 0
 
-            with token_lock:
-                if token_count >= tpm_limit:
-                    print("TPM limit reached. Pausing for a minute...")
-                    time.sleep(rate_limit_period)
-                    token_count = 0
+                with token_lock:
+                    if token_count >= tpm_limit:
+                        print("TPM limit reached. Pausing for a minute...")
+                        time.sleep(rate_limit_period)
+                        token_count = 0
 
-            # Prepare batch requests
-            messages = [
-                {"role": "system", "content": prompt},
-                *examples
-            ]
+                messages = [
+                    {"role": "system", "content": prompt},
+                    *examples,
+                    {"role": "user", "content": f"Categorize these hashtags: {hashtags_str}"}
+                ]
 
-            batch_requests = []
-            for i in range(0, len(hashtags_list), batch_size):
-                batch = hashtags_list[i:i+batch_size]
-                batch_messages = messages + [{"role": "user", "content": f"Categorize these hashtags: {', '.join(batch)}"}]
-                batch_requests.append({"messages": batch_messages})
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=0
+                )
 
-            # Make batch request
-            response = client.chat.completions.create(
-                model=model,
-                messages=batch_requests,
-                temperature=0
-            )
+                with request_lock:
+                    request_count += 1
 
-            with request_lock:
-                request_count += len(batch_requests)
+                with token_lock:
+                    token_count += sum([len(prompt), len(response.choices[0].message.content)])
 
-            with token_lock:
-                token_count += sum([len(prompt), sum([len(choice.message.content) for choice in response.choices])])
+                label = response.choices[0].message.content.strip()
+                
+                # Parse the response and update the results
+                try:
+                    batch_results = ast.literal_eval(label)
+                    for category, tags in batch_results.items():
+                        if category not in results:
+                            results[category] = []
+                        results[category].extend(tags)
+                except (SyntaxError, ValueError) as e:
+                    print(f"Error parsing response: {e}")
+                    print(f"Problematic response: {label}")
+                
+                break  # Exit the retry loop if successful
 
-            # Process batch results
-            for choice in response.choices:
-                label = choice.message.content.lower().strip()
-                results.append(label)
+            except openai.RateLimitError as e:
+                print(f"Rate limit error: {e}. Retrying in {retry_wait_time} seconds...")
+                time.sleep(retry_wait_time)
+                retries -= 1
+            except Exception as e:
+                print(f"An error occurred: {e}. Retrying...")
+                retries -= 1
+                time.sleep(retry_wait_time)
 
-            return results
-
-        except openai.RateLimitError as e:
-            print(f"Rate limit error: {e}. Retrying in {retry_wait_time} seconds...")
-            time.sleep(retry_wait_time)
-            retries -= 1
-        except Exception as e:
-            print(f"An error occurred: {e}. Retrying...")
-            retries -= 1
-            time.sleep(retry_wait_time)
-
-    print("Max retries reached. Skipping...")
-    return ["skipped"] * len(hashtags_list)
+    return results
