@@ -56,7 +56,7 @@ def get_theme(hashtags, retries=2, model=None, client=None):
     - Acronyms may be present in the set for instance "NA" representing Narcotics Anonymous.
     - If the word is a consumption method (e.g., "drink"), prioritize the "consumption method" category and not the "other substance" or "alcohol" category.
     - Return results in JSON format with categories as keys and arrays of hashtags as values
-    - Include all input hashtags in the categorization exactly once
+    - REMEMBER: Match each hashtag to ONLY ONE category!
     """
     examples = [
         {"role": "user", "content": "love, addiction, alcohol, cookies, foundersday, cannabis, modafinil, heroin, smoking, harmreduction, vitamins, fyp, stoned, vaping, soberhumor, kensingtonphilly, nurselife, lgbtqia"},
