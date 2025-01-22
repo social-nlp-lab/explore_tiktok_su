@@ -1,9 +1,7 @@
 # TikTok Substance Use Hashtag Analysis
-
 This repository contains code and analysis for exploring substance-related hashtags on TikTok through thematic and network analysis approaches. 
 
 ## Repository Structure
-
 Python analysis notebooks:
 - `analysis.ipynb` - Core analysis notebook for substance use themes
 - `filter_network.ipynb` - Network filtering and processing
