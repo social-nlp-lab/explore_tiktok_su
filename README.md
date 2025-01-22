@@ -5,7 +5,7 @@ This repository contains code and analysis for exploring substance-related hasht
 
 ## Repository Structure
 
-# Python analysis notebooks:
+### Python analysis notebooks:
 - `analysis.ipynb` - Core analysis notebook for substance use themes
 - `filter_network.ipynb` - Network filtering and processing
 - `get_graph.ipynb` - Graph creation and network analysis
@@ -17,4 +17,4 @@ This repository contains code and analysis for exploring substance-related hasht
 The full dataset can be provided upon request. Please contact the repository maintainers for access.
 
 ## Contact
-For questions regarding the paper or data, please contact [lb3338] at [drexel.edu].
+For questions regarding the paper or data, please contact lb3338 or mg3857 at drexel.edu.
