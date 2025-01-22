@@ -1,17 +1,14 @@
-# the script for labeling a post as drug-related or not
+# the script for labeling a post as durg-related or not
 import pandas as pd
 import json
 import openai
 import time
 from threading import Lock
-from typing import List, Dict
-
 
 rate_limit = 10000
 tpm_limit = 2000000  # Tokens per minute
 rate_limit_period = 60  # seconds
 retry_wait_time = 5  # seconds between retries
-batch_size = 20  # Number of requests to batch together
 
 # Global variables for tracking rate limit
 request_count = 0
@@ -19,11 +16,19 @@ token_count = 0
 request_lock = Lock()
 token_lock = Lock()
 
-def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> List[str]:
-    global request_count, token_count
-
+def get_theme(hashtags, retries=2, model=None, client=None):
     prompt = """
-    Instruction: You are an expert linguist, specializing in content analysis related to substances and drug use. Your task is to semantically categorize phrases or hashtags from TikTok that have been associated with drug-related content. Here are the 17 defined categories:
+    Instruction: You are an expert linguist, specializing in content analysis related to substances and drug use. Your task is to semantically categorize phrases or hashtags from TikTok into exactly one of these 17 categories and return the results in JSON format.
+    
+    IMPORTANT RULES:
+    - Each hashtag MUST be assigned to EXACTLY ONE category
+    - Never include the same hashtag in multiple categories
+    - If a hashtag could fit multiple categories, choose the most specific or prominent category
+    - When in doubt between categories:
+        * For substance-specific words, use the specific substance category (alcohol, cannabis, tobacco_nicotine) over general categories
+        * For consumption methods, prioritize the "consumption method" category over substance categories
+        * For platform-specific tags, use the "platform" category
+    Categories:
     1- emotions and feelings: words and phrases related to emotional states and feelings. 
     2- health conditions: words and phrases related to health issues directly related to substance use, addiction-related health problems, or chronic conditions that may lead to substance use. Tags related to health issues stemming from substance use or conditions that might lead to substance use. 
     3- alcohol: words related to alcoholic beverages and spirits. This is just about the substances or drinks and not the side effects and consumption methods. 
@@ -41,21 +46,20 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
     15- occupation: words related to occupations or professions. 
     16- identity and community: hashtags related to any social identity, demographic group, or community affiliation. This includes, but is not limited to, dimensions such as race, ethnicity, gender identity, sexual orientation, disability status, socioeconomic background, immigration status, religion, age group, or membership in specific subcultures or communities. 
     17- misc: Any tag that does not fit into the above categories. 
-    Task: Categorize the hashtag provided below into exactly one of the 17 categories: cannabis, cognitive enhancement, platform, tobacco_nicotine, emotions and feelings, commonly-misused substances, other substances, substance effects, alcohol, consumption method, health conditions, awareness and advocacy, Identity-Based Risk Groups, humor, location, occupation, and misc.
-
-    Notes: 
-    Do not make new categories and only use the ones provided to you. 
-    Some words may be misspelled, consider the correct spelling of the word when classifying but do not change the spellings of the hashtag or words in the result. 
-    Do not give any explanations. 
-    Slangs and euphemisms are present in this list, pointing to various types of illicit and licit drugs or using cannabis and other substances, for instance, drank, 40s, 30s (common substances), shmoke (consuming).  Take this into consideration when labeling the words. 
-    Acronyms may be present in the set for instance NA representing Narcotics Anonymous.
-    If the word is substance-specific, categorize it under the specific substance category. 
-    If the word is a consumption method for instance drink, prioritize the "Consumption Method" category and not the substance or alcohol category. 
-
-    Present your results in a clear, organized format, listing the categories and their respective hashtags.DO NOT CREATE NEW HASHTAGS. GROUP ONLY THE HASHTAGS PROVIDED AND GROUP ALL HASHTAGS.
+    
+    Other Rules: 
+    - Do not make new categories and only use the ones provided to you. 
+    - Consider correct spelling when classifying but don't change the hashtag spellings
+    - For substance-specific words, use the specific substance category
+    - Do not give any explanations. 
+    - Slangs and euphemisms are present in this list, pointing to various types of illicit and licit drug usage, for instance, "drank", "40s", "30s" (common substances), "shmoke" (consuming).
+    - Acronyms may be present in the set for instance "NA" representing Narcotics Anonymous.
+    - If the word is a consumption method (e.g., "drink"), prioritize the "consumption method" category and not the "other substance" or "alcohol" category.
+    - Return results in JSON format with categories as keys and arrays of hashtags as values
+    - REMEMBER: Match each hashtag to ONLY ONE category!
     """
     examples = [
-        {"role": "user", "content": "love, addiction, alcohol, cookies, foundersday,cannabis, modafinil, heroin, smoking, harmreduction, vitamins, fyp, stoned, vaping, addictionhumor, kensingtonphilly, nurselife, lgbtqia"},
+        {"role": "user", "content": "love, addiction, alcohol, cookies, foundersday, cannabis, modafinil, heroin, smoking, harmreduction, vitamins, fyp, stoned, vaping, soberhumor, kensingtonphilly, nurselife, lgbtqia"},
         {"role": "assistant", "content": """
         {
             "emotions and feelings": ["love"],
@@ -70,14 +74,14 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "platform": ["fyp"],
             "substance effects": ["stoned"],
             "tobacco_nicotine": ["vaping"],
-            "humor": ["addictionhumor"],
+            "humor": ["soberhumor"],
             "location": ["kensingtonphilly"],
             "occupation": ["nurselife"],
-            "identity and community": ["lgbtqia"]
+            "identity and community": ["lgbtqia"],
             "misc": ["cookies", "foundersday"]
         }
         """},
-        {"role": "user", "content": "gratitude, chronicpain, vodka, stonersoftiktok, smartdrugs, xans, injection, soberlife, magnesium, viral, drunk, ecigs, drughumor, boston, medstudent, transgender"},
+        {"role": "user", "content": "gratitude, chronicpain, vodka, stonersoftiktok, smartdrugs, xans, injection, recoverylife, magnesium, viral, drunk, ecigs, drughumor, boston, medstudent, transgender"},
         {"role": "assistant", "content": """
         {
             "emotions and feelings": ["gratitude"],
@@ -87,7 +91,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "cognitive enhancement": ["smartdrugs"],
             "commonly-misused substances": ["xans"],
             "consumption method": ["injection"],
-            "awareness and advocacy": ["soberlife"],
+            "awareness and advocacy": ["recoverylife"],
             "other substances": ["magnesium"],
             "platform": ["viral"],
             "substance effects": ["drunk"],
@@ -98,7 +102,7 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "identity and community": ["transgender"]
         }
         """},
-        {"role": "user", "content": "trauma, opioidaddiction, whiskey, weed, nootropics, fentfriday, drink, narcansaveslives, tylenol, tiktok, highasfuck, juul, recoveryhumor, philly, healthcareworkers, queergirl"},
+        {"role": "user", "content": "trauma, opioidaddiction, whiskey, weed, nootropics, fentfriday, drink, narcansaveslives, tylenol, tiktok, highasfuck, juul, recoverymemes, philly, healthcareworkers, queergirl"},
         {"role": "assistant", "content": """
         {
             "emotions and feelings": ["trauma"],
@@ -113,13 +117,13 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "platform": ["tiktok"],
             "substance effects": ["highasfuck"],
             "tobacco_nicotine": ["juul"],
-            "humor": ["recoveryhumor"],
+            "humor": ["recoverymemes"],
             "location": ["philly"],
             "occupation": ["healthcareworkers"],
             "identity and community": ["queergirl"]
         }
         """},
-        {"role": "user", "content": "vibes, substanceusedisorder, cocktails, dabs, cerebrolysin, lean, shmoke, harmreductionworks, ibuprofen, trending, blackedout, cigs, addictionhumor, sanfrancisco, socialworker, whitegirl"},
+        {"role": "user", "content": "vibes, substanceusedisorder, cocktails, dabs, cerebrolysin, lean, shmoke, harmreductionworks, ibuprofen, trending, blackedout, cigs, rehabmemes, sanfrancisco, socialworker, whitegirl"},
         {"role": "assistant", "content": """
         {
             "emotions and feelings": ["vibes"],
@@ -134,20 +138,20 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "platform": ["trending"],
             "substance effects": ["blackedout"],
             "tobacco_nicotine": ["cigs"],
-            "humor": ["addictionhumor"],
+            "humor": ["rehabmemes"],
             "location": ["sanfrancisco"],
             "occupation": ["socialworker"],
             "identity and community": ["whitegirl"]
         }
         """},
-        {"role": "user", "content": "happytobealive, ptsd, tequila, 420vibes, modafinil, percs, inhaling, overdoseawareness, creatine, duet, hammered, nicotine, drughumor, usa, frontlineworkers, transtok"},
+        {"role": "user", "content": "happytobealive, ptsd, tequila, 420vibes, piracetam, percs, inhaling, overdoseawareness, creatine, duet, hammered, nicotine, sobermemes, usa, frontlineworkers, transtok"},
         {"role": "assistant", "content": """
         {
             "emotions and feelings": ["happytobealive"],
             "health conditions": ["ptsd"],
             "alcohol": ["tequila"],
             "cannabis": ["420vibes"],
-            "cognitive enhancement": ["modafinil"],
+            "cognitive enhancement": ["piracetam"],
             "commonly-misused substances": ["percs"],
             "consumption method": ["inhaling"],
             "awareness and advocacy": ["overdoseawareness"],
@@ -155,14 +159,15 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             "platform": ["duet"],
             "substance effects": ["hammered"],
             "tobacco_nicotine": ["nicotine"],
-            "humor": ["drughumor"],
+            "humor": ["sobermemes"],
             "location": ["usa"],
             "occupation": ["frontlineworkers"],
             "identity and community": ["transtok"]
         }
         """}
-    ]
-    results = []
+        ]
+
+    global request_count, token_count
 
     while retries > 0:
         try:
@@ -178,37 +183,54 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
                     time.sleep(rate_limit_period)
                     token_count = 0
 
-            # Prepare batch requests
             messages = [
                 {"role": "system", "content": prompt},
-                *examples
+                *examples,
+                {"role": "user", "content": f"Categorize these hashtags: {hashtags}"}
             ]
-
-            batch_requests = []
-            for i in range(0, len(hashtags_list), batch_size):
-                batch = hashtags_list[i:i+batch_size]
-                batch_messages = messages + [{"role": "user", "content": f"Categorize these hashtags: {', '.join(batch)}"}]
-                batch_requests.append({"messages": batch_messages})
-
-            # Make batch request
             response = client.chat.completions.create(
+                messages=messages,
                 model=model,
-                messages=batch_requests,
-                temperature=0
+                temperature=0,
+                response_format={ "type": "json_object" }
             )
+            # response = client.chat.completions.create(
+            #     messages=[
+            #         {"role": "system", "content": prompt},
+            #         {"role": "user", "content": example1},
+            #         {"role": "system", "content": answer1},
+            #         {"role": "user", "content": example2},
+            #         {"role": "system", "content": answer2},
+            #         {"role": "user", "content": example3},
+            #         {"role": "system", "content": answer3},
+            #         {"role": "user", "content": example4},
+            #         {"role": "system", "content": answer4},
+            #         {"role": "user", "content": example5},
+            #         {"role": "system", "content": answer5},
+            #         {"role": "user", "content": example6},
+            #         {"role": "system", "content": answer6},
+            #         {"role": "user", "content": example7},
+            #         {"role": "system", "content": answer7},
+            #         {"role": "user", "content": example8},
+            #         {"role": "system", "content": answer8},
+            #         {"role": "user", "content": example9},
+            #         {"role": "system", "content": answer9},
+            #         {"role": "user", "content": example10},
+            #         {"role": "system", "content": answer10},
+            #         {"role": "user", "content": hashtags}
+            #     ],
+            #     model=model,
+            #     temperature=0
+            # )
 
             with request_lock:
-                request_count += len(batch_requests)
+                request_count += 1
 
             with token_lock:
-                token_count += sum([len(prompt), sum([len(choice.message.content) for choice in response.choices])])
+                token_count += sum([len(prompt), len(response.choices[0].message.content)])
 
-            # Process batch results
-            for choice in response.choices:
-                label = choice.message.content.lower().strip()
-                results.append(label)
-
-            return results
+            label = response.choices[0].message.content.lower().strip()
+            return label
 
         except openai.RateLimitError as e:
             print(f"Rate limit error: {e}. Retrying in {retry_wait_time} seconds...")
@@ -220,4 +242,4 @@ def get_themes(hashtags_list: List[str], retries=2, model=None, client=None) -> 
             time.sleep(retry_wait_time)
 
     print("Max retries reached. Skipping...")
-    return ["skipped"] * len(hashtags_list)
+    return "skipped"
